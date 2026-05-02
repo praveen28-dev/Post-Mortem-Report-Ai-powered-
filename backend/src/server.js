@@ -30,9 +30,28 @@ app.use(cors({
 
 app.use(express.json()); // Parse JSON bodies
 
+// Root endpoint - API info
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    message: 'PostMortem AI Backend is active',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      generate: '/api/generate'
+    },
+    documentation: 'https://github.com/your-repo/postmortem-app'
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'PostMortem Backend is running' });
+  res.json({ 
+    status: 'OK', 
+    message: 'PostMortem Backend is running',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Routes
