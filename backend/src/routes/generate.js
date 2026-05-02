@@ -1,24 +1,10 @@
 import express from 'express';
 import Groq from 'groq-sdk';
-import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 
 const router = express.Router();
 
-// 1. Rate Limiting: Prevent API abuse
-// Default: 10 requests per 15 minutes per IP
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10,
-  message: { 
-    error: 'Too many postmortem generation requests. Please try again later.',
-    retryAfter: '15 minutes'
-  },
-  standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
-  legacyHeaders: false, // Disable `X-RateLimit-*` headers
-});
-
-// 2. Validation Schema: Ensure incoming data is clean and complete
+// Validation Schema: Ensure incoming data is clean and complete
 const incidentSchema = z.object({
   what: z.string()
     .min(10, 'Incident description must be at least 10 characters')
@@ -28,6 +14,9 @@ const incidentSchema = z.object({
   duration: z.string()
     .min(1, 'Duration is required')
     .max(100, 'Duration is too long'),
+  severity: z.enum(['SEV-1', 'SEV-2', 'SEV-3', 'SEV-4'])
+    .optional()
+    .default('SEV-3'),
   impact: z.string()
     .min(10, 'Impact description must be at least 10 characters')
     .max(5000, 'Impact description is too long'),
@@ -39,14 +28,8 @@ const incidentSchema = z.object({
 /**
  * POST /api/generate
  * Generate a postmortem document from incident data using Groq AI
- * 
- * Security Features:
- * - Rate limited to prevent abuse
- * - Input validation with Zod
- * - API key never exposed to client
- * - Sanitized error messages
  */
-router.post('/', limiter, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     // Validate API key exists
     if (!process.env.GROQ_API_KEY) {
@@ -62,6 +45,7 @@ router.post('/', limiter, async (req, res) => {
     console.log('📝 Generating postmortem for incident:', {
       what: validatedData.what.substring(0, 50) + '...',
       when: validatedData.when,
+      severity: validatedData.severity,
     });
 
     // Initialize Groq client
@@ -69,76 +53,39 @@ router.post('/', limiter, async (req, res) => {
       apiKey: process.env.GROQ_API_KEY
     });
 
-    // Construct comprehensive prompt with system instructions
-    const systemPrompt = `You are a Senior Site Reliability Engineer with extensive experience in incident management and postmortem documentation. Your task is to analyze incident data and generate a professional, high-fidelity Markdown postmortem document.
+    // Construct comprehensive prompt
+    const prompt = `You are a Senior Site Reliability Engineer. Generate a professional incident postmortem report in markdown format.
 
-Your postmortem MUST include the following sections:
+**Incident Details:**
+- Severity: ${validatedData.severity}
+- Occurrence: ${validatedData.when}
+- Duration: ${validatedData.duration}
+- Impact: ${validatedData.impact}
+- What Happened: ${validatedData.what}
+- Resolution: ${validatedData.resolution}
 
-# Executive Summary
-A concise overview (2-3 sentences) of what happened, the impact, and the resolution.
+**Required Sections:**
+1. Executive Summary (2-3 sentences)
+2. Incident Timeline (chronological with timestamps)
+3. Root Cause Analysis (5 Whys methodology)
+4. Impact Assessment (business and technical)
+5. Resolution Steps (what was done)
+6. Action Items (with priorities: High/Medium/Low)
+7. Lessons Learned (3-5 actionable insights)
 
-# Incident Details
-- **Date & Time:** [from incident data]
-- **Duration:** [from incident data]
-- **Status:** Resolved
-
-# Incident Timeline
-A detailed chronological breakdown of events from detection to resolution. Use bullet points with timestamps.
-
-# Root Cause Analysis (5 Whys)
-Apply the 5 Whys methodology to drill down to the fundamental cause:
-- **Why 1:** [First level cause]
-- **Why 2:** [Deeper cause]
-- **Why 3:** [Even deeper]
-- **Why 4:** [Getting to root]
-- **Why 5:** [Root cause identified]
-
-# Impact Assessment
-Describe the business and technical impact in detail.
-
-# Resolution
-Explain how the incident was resolved and what immediate actions were taken.
-
-# Lessons Learned
-Provide 3-5 actionable insights gained from this incident.
-
-# Action Items
-List specific, actionable follow-up tasks with suggested priorities (High/Medium/Low).
-
-Format the output in clean, professional Markdown with proper headers (##), bullet points, and emphasis where appropriate. Be thorough but concise. Use technical language appropriate for an engineering audience.`;
-
-    const userPrompt = `Please analyze this incident and create a professional postmortem document:
-
-**What Happened:**
-${validatedData.what}
-
-**When:**
-${validatedData.when}
-
-**Duration:**
-${validatedData.duration}
-
-**Impact:**
-${validatedData.impact}
-
-**Resolution:**
-${validatedData.resolution}`;
+Format with clear markdown headers (##), bullet points, and professional technical language suitable for SRE/DevOps teams.`;
 
     // Call Groq API with Llama model
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
-          role: 'system',
-          content: systemPrompt
-        },
-        {
           role: 'user',
-          content: userPrompt
+          content: prompt
         }
       ],
-      model: 'llama-3.3-70b-versatile', // Fast and high-quality model
+      model: 'llama3-8b-8192', // Fast and free-tier friendly
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 2048,
       top_p: 0.95,
     });
 
@@ -154,7 +101,7 @@ ${validatedData.resolution}`;
     res.json({ 
       markdown: text,
       generatedAt: new Date().toISOString(),
-      model: 'llama-3.3-70b-versatile'
+      model: 'llama3-8b-8192'
     });
 
   } catch (error) {

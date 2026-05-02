@@ -10,7 +10,7 @@ export interface IncidentFormData {
 }
 
 export interface PostMortemResponse {
-  content: string;
-  model: string;
+  markdown: string;
   generatedAt: string;
+  model: string;
 }

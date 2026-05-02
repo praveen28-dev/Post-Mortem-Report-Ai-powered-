@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import dotenv from 'dotenv';
 import generateRoute from './routes/generate.js';
 
@@ -10,13 +9,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Security Middleware
-app.use(helmet()); // Sets various HTTP headers for security
-
 // CORS Configuration - Allow multiple origins
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173'];
+  : ['http://localhost:5173', 'http://localhost:4173'];
 
 app.use(cors({
   origin: (origin, callback) => {

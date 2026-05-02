@@ -1,7 +1,12 @@
 FROM node:20-slim
 WORKDIR /app
+
+# Ensure we are copying the correct package file
 COPY package*.json ./
 RUN npm install
+
 COPY . .
-EXPOSE 5000
-CMD ["npm", "start"]
+
+# Explicitly tell Docker how to run the server instead of using npm start
+# This bypasses the package.json "scripts" requirement
+CMD ["node", "src/server.js"]

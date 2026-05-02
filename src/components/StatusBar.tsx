@@ -4,7 +4,7 @@ export default function StatusBar() {
       <div className="status-left">
         <div className="status-model">
           <span className="status-dot" />
-          <span>claude-sonnet-4-5</span>
+          <span>llama3-8b-8192</span>
         </div>
         <span className="status-divider">|</span>
         <span>Built for SREs & DevOps</span>
